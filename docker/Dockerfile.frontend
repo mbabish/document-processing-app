@@ -7,12 +7,10 @@ COPY frontend/package.json ./
 # Install dependencies
 RUN npm install
 
-# Copy all frontend files
-COPY frontend/ ./
-
-# TypeScript type checking
-RUN npm run tsc
+# We don't copy the frontend files here as we'll mount them as a volume
+# to enable hot reloading
 
 EXPOSE 3000
 
+# Start with react-scripts' development server which includes hot reloading
 CMD ["npm", "start"]

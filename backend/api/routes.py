@@ -6,8 +6,8 @@ api_bp = Blueprint('api', __name__)
 
 # Mock data for demonstration purposes
 def generate_mock_data():
-    schema_ids = ["invoice", "receipt", "contract"]
-    schema_titles = {"invoice": "Invoice", "receipt": "Receipt", "contract": "Contract"}
+    schema_ids = ["invoice", "receipt", "contract", "test"]
+    schema_titles = {"invoice": "Invoice", "receipt": "Receipt", "contract": "Contract", "test": "Test"}
     
     documents = []
     for i in range(20):
