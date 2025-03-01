@@ -1,21 +1,31 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
+import { ReportData, SchemaReportData, ReportDocument } from '../types/report.types';
 
-const ReportList = () => {
-  const [reportData, setReportData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [selectedSchema, setSelectedSchema] = useState('all');
+type ReportDataType = ReportData | SchemaReportData;
+
+interface SchemaOption {
+  id: string;
+  title: string;
+}
+
+interface ReportListProps {}
+
+const ReportList = (props: ReportListProps): JSX.Element => {
+  const [reportData, setReportData] = useState(null as ReportDataType | null);
+  const [loading, setLoading] = useState(true as boolean);
+  const [error, setError] = useState(null as string | null);
+  const [selectedSchema, setSelectedSchema] = useState('all' as string);
 
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchData = async (): Promise<void> => {
       try {
-        const url = selectedSchema === 'all' 
+        const url: string = selectedSchema === 'all' 
           ? `${process.env.REACT_APP_API_URL}/api/reports`
           : `${process.env.REACT_APP_API_URL}/api/reports/${selectedSchema}`;
           
-        const response = await axios.get(url);
+        const response = await axios.get<ReportDataType>(url);
         setReportData(response.data);
         setLoading(false);
       } catch (err) {
@@ -32,19 +42,25 @@ const ReportList = () => {
   if (error) return <div>Error: {error}</div>;
   if (!reportData) return <div>No data available</div>;
 
-  const getConfidenceClass = (confidence) => {
+  const getConfidenceClass = (confidence: number): string => {
     if (confidence >= 0.9) return 'tag tag-high';
     if (confidence >= 0.7) return 'tag tag-medium';
     return 'tag tag-low';
   };
 
-  // Get schema options for filter
-  const schemaOptions = Object.keys(reportData.schemas_used || {}).map(key => ({
-    id: key,
-    title: reportData.schemas_used[key].title
-  }));
+  // Get schema options for filter - check if schemas_used exists before mapping
+  const schemaOptions: SchemaOption[] = 'schemas_used' in reportData 
+    ? Object.keys(reportData.schemas_used).map(key => ({
+        id: key,
+        title: reportData.schemas_used[key].title
+      }))
+    : [];
 
-  const documents = reportData.document_list || [];
+  const documents: ReportDocument[] = reportData.document_list || [];
+
+  const handleSchemaChange = (e: { target: { value: string } }): void => {
+    setSelectedSchema(e.target.value);
+  };
 
   return (
     <div>
@@ -56,7 +72,7 @@ const ReportList = () => {
             &nbsp; | &nbsp;
             <select 
               value={selectedSchema} 
-              onChange={(e) => setSelectedSchema(e.target.value)}
+              onChange={handleSchemaChange}
             >
               <option value="all">All Schemas</option>
               {schemaOptions.map(schema => (

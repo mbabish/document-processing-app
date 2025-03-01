@@ -1,17 +1,42 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Bar } from 'react-chartjs-2';
+import { 
+  Chart as ChartJS, 
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend,
+  ChartData,
+  ChartOptions
+} from 'chart.js';
 import axios from 'axios';
+import { ReportData, ReportDocument } from '../types/report.types';
 
-const Dashboard = () => {
-  const [reportData, setReportData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+// Register ChartJS components
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend
+);
+
+interface DashboardProps {}
+
+const Dashboard = (props: DashboardProps): JSX.Element => {
+  // State declarations with proper typing
+  const [reportData, setReportData] = useState(null as ReportData | null);
+  const [loading, setLoading] = useState(true as boolean);
+  const [error, setError] = useState(null as string | null);
 
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchData = async (): Promise<void> => {
       try {
-        const response = await axios.get(`${process.env.REACT_APP_API_URL}/api/reports`);
+        const response = await axios.get<ReportData>(`${process.env.REACT_APP_API_URL}/api/reports`);
         setReportData(response.data);
         setLoading(false);
       } catch (err) {
@@ -29,14 +54,14 @@ const Dashboard = () => {
   if (!reportData) return <div>No data available</div>;
 
   // Prepare data for schema usage chart
-  const schemaLabels = Object.keys(reportData.schemas_used).map(
+  const schemaLabels: string[] = Object.keys(reportData.schemas_used).map(
     key => reportData.schemas_used[key].title
   );
-  const schemaData = Object.keys(reportData.schemas_used).map(
+  const schemaData: number[] = Object.keys(reportData.schemas_used).map(
     key => reportData.schemas_used[key].count
   );
 
-  const schemaChartData = {
+  const schemaChartData: ChartData<'bar'> = {
     labels: schemaLabels,
     datasets: [
       {
@@ -51,7 +76,20 @@ const Dashboard = () => {
     ],
   };
 
-  const getConfidenceClass = (confidence) => {
+  const chartOptions: ChartOptions<'bar'> = {
+    maintainAspectRatio: false,
+    scales: {
+      y: {
+        beginAtZero: true,
+        title: {
+          display: true,
+          text: 'Number of Documents'
+        }
+      }
+    }
+  };
+
+  const getConfidenceClass = (confidence: number): string => {
     if (confidence >= 0.9) return 'tag tag-high';
     if (confidence >= 0.7) return 'tag tag-medium';
     return 'tag tag-low';
@@ -88,18 +126,7 @@ const Dashboard = () => {
         <div style={{ height: '300px' }}>
           <Bar 
             data={schemaChartData}
-            options={{
-              maintainAspectRatio: false,
-              scales: {
-                y: {
-                  beginAtZero: true,
-                  title: {
-                    display: true,
-                    text: 'Number of Documents'
-                  }
-                }
-              }
-            }}
+            options={chartOptions}
           />
         </div>
       </div>
@@ -120,7 +147,7 @@ const Dashboard = () => {
               </tr>
             </thead>
             <tbody>
-              {reportData.recent_classifications?.map((doc) => (
+              {reportData.recent_classifications?.map((doc: ReportDocument) => (
                 <tr key={doc.classification_id}>
                   <td>{doc.filename}</td>
                   <td>{doc.schema_title}</td>

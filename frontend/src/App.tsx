@@ -4,7 +4,9 @@ import Dashboard from './components/Dashboard';
 import ReportList from './components/ReportList';
 import './index.css';
 
-function App() {
+interface AppProps {}
+
+const App = (props: AppProps): JSX.Element => {
   return (
     <Router>
       <div className="container">
