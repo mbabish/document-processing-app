@@ -69,3 +69,7 @@ yarn-error.log*
 
 # TypeScript cache
 *.tsbuildinfo
+
+# Backend uploads - ignore uploaded files
+/backend/uploads/
+/backend/uploads/*

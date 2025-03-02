@@ -1,13 +1,76 @@
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, request, current_app
 import datetime
 import random
+import os
+import uuid
 
 api_bp = Blueprint('api', __name__)
 
+# Define upload folder
+UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), '..', 'uploads')
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+ALLOWED_EXTENSIONS = {'pdf'}
+
+def allowed_file(filename):
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+@api_bp.route('/upload', methods=['POST'])
+def upload_file():
+    # Check if the post request has the file part
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file part in the request'}), 400
+    
+    file = request.files['file']
+    
+    # If user does not select file, browser also submits an empty part without filename
+    if file.filename == '':
+        return jsonify({'error': 'No file selected'}), 400
+    
+    if file and allowed_file(file.filename):
+        # Generate unique filename
+        original_filename = file.filename
+        unique_filename = f"{uuid.uuid4()}_{original_filename}"
+        filepath = os.path.join(UPLOAD_FOLDER, unique_filename)
+        
+        # Save the file
+        file.save(filepath)
+        
+        # Auto-detect document type (in a real app, this would use ML/AI)
+        # For now, we'll randomly choose a document type
+        available_schemas = ["invoice", "receipt", "contract"]
+        schema_id = random.choice(available_schemas)
+        schema_title = schema_id.capitalize()
+        
+        # Generate a random classification ID
+        classification_id = f"doc-{uuid.uuid4()}"
+        
+        # In a real application, you would process the document here
+        # For now, we'll simulate processing with random confidence
+        
+        document = {
+            "classification_id": classification_id,
+            "filename": original_filename,
+            "schema_id": schema_id,
+            "schema_title": schema_title,
+            "processed_at": datetime.datetime.now().isoformat(),
+            "confidence": round(random.uniform(0.7, 0.99), 2),
+            "fields_count": random.randint(5, 15),
+            "filepath": filepath  # You might not want to expose this in production
+        }
+        
+        return jsonify({
+            'success': True,
+            'message': f'File uploaded and processed as {schema_title}',
+            'document': document
+        }), 201
+        
+    return jsonify({'error': 'File type not allowed'}), 400
+
 # Mock data for demonstration purposes
 def generate_mock_data():
-    schema_ids = ["invoice", "receipt", "contract", "test"]
-    schema_titles = {"invoice": "Invoice", "receipt": "Receipt", "contract": "Contract", "test": "Test"}
+    schema_ids = ["invoice", "receipt", "contract"]
+    schema_titles = {"invoice": "Invoice", "receipt": "Receipt", "contract": "Contract"}
     
     documents = []
     for i in range(20):
@@ -18,7 +81,6 @@ def generate_mock_data():
             "schema_id": schema_id,
             "schema_title": schema_titles[schema_id],
             "processed_at": (datetime.datetime.now() - datetime.timedelta(days=random.randint(1, 30))).isoformat(),
-            "confidence": round(random.uniform(0.6, 0.99), 2),
             "fields_count": random.randint(5, 15)
         })
     
@@ -53,32 +115,11 @@ def generate_mock_data():
             "overall_coverage": round(sum(f["count"] for f in fields.values()) / sum(f["total"] for f in fields.values()) * 100, 1)
         }
     
-    # Mock confidence metrics
-    confidence_values = [doc["confidence"] for doc in documents]
-    confidence_by_schema = {}
-    
-    for schema_id in schema_ids:
-        schema_confidences = [doc["confidence"] for doc in documents if doc["schema_id"] == schema_id]
-        if schema_confidences:
-            confidence_by_schema[schema_id] = {
-                "average": round(sum(schema_confidences) / len(schema_confidences), 2),
-                "median": round(sorted(schema_confidences)[len(schema_confidences) // 2], 2),
-                "min": round(min(schema_confidences), 2),
-                "max": round(max(schema_confidences), 2)
-            }
-    
-    confidence_metrics = {
-        "average": round(sum(confidence_values) / len(confidence_values), 2),
-        "median": round(sorted(confidence_values)[len(confidence_values) // 2], 2),
-        "by_schema": confidence_by_schema
-    }
-    
     return {
         "generated_at": datetime.datetime.now().isoformat(),
         "total_documents": len(documents),
         "schemas_used": schemas_used,
         "field_coverage": field_coverage,
-        "confidence_metrics": confidence_metrics,
         "recent_classifications": documents[:5],
         "document_list": documents
     }
@@ -103,10 +144,6 @@ def get_schema_report(schema_id):
         "schema_title": documents[0]["schema_title"],
         "total_documents": len(documents),
         "field_coverage": {schema_id: mock_data["field_coverage"].get(schema_id, {})},
-        "confidence_metrics": {
-            "average": round(sum(doc["confidence"] for doc in documents) / len(documents), 2),
-            "median": round(sorted([doc["confidence"] for doc in documents])[len(documents) // 2], 2)
-        },
         "document_list": documents
     }
     

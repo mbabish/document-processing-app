@@ -98,11 +98,6 @@ const ReportList = (props: ReportListProps): JSX.Element => {
                 <td>{doc.filename}</td>
                 <td>{doc.schema_title}</td>
                 <td>{new Date(doc.processed_at).toLocaleString()}</td>
-                <td>
-                  <span className={getConfidenceClass(doc.confidence)}>
-                    {(doc.confidence * 100).toFixed(1)}%
-                  </span>
-                </td>
                 <td>{doc.fields_count || 'N/A'}</td>
               </tr>
             ))}
