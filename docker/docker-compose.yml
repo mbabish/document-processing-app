@@ -5,8 +5,9 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile.backend
-    ports:
-      - "5000:5000"
+    # Don't expose ports directly to host - only through frontend proxy
+    expose:
+      - "5000"
     volumes:
       - ../backend:/app
     environment:
@@ -14,6 +15,9 @@ services:
       - FLASK_APP=app.py
       - FLASK_DEBUG=1
       - PYTHONUNBUFFERED=1
+      - LLM_API_URL=http://llm:8000
+    depends_on:
+      - llm
     restart: unless-stopped
 
   frontend:
@@ -27,8 +31,8 @@ services:
       - /app/node_modules
     depends_on:
       - backend
+      - llm
     environment:
-      - REACT_APP_API_URL=http://localhost:5000
       - CHOKIDAR_USEPOLLING=true
       - WATCHPACK_POLLING=true
       - WDS_SOCKET_PORT=3000
@@ -40,13 +44,15 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile.llm
-    ports:
-      - "8000:8000"
+    # Don't expose ports directly to host - only through frontend proxy
+    expose:
+      - "8000"
     volumes:
       - ../llm:/app
       - llm-cache:/root/.cache  # Persistent cache for model downloads
     environment:
       - LOG_LEVEL=INFO
+
     restart: unless-stopped
     # If your machine has limited memory, you might want to limit the container
     deploy:

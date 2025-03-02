@@ -42,7 +42,7 @@ const FileUpload = (props: FileUploadProps): JSX.Element => {
 
     try {
       const response = await axios.post(
-        `${process.env.REACT_APP_API_URL}/api/upload`,
+        `/api/upload`,
         formData,
         {
           headers: {

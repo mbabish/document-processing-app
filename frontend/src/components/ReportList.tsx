@@ -22,8 +22,8 @@ const ReportList = (props: ReportListProps): JSX.Element => {
     const fetchData = async (): Promise<void> => {
       try {
         const url: string = selectedSchema === 'all' 
-          ? `${process.env.REACT_APP_API_URL}/api/reports`
-          : `${process.env.REACT_APP_API_URL}/api/reports/${selectedSchema}`;
+          ? `/api/reports`
+          : `/api/reports/${selectedSchema}`;
           
         const response = await axios.get<ReportDataType>(url);
         setReportData(response.data);
@@ -88,7 +88,6 @@ const ReportList = (props: ReportListProps): JSX.Element => {
               <th>Filename</th>
               <th>Schema</th>
               <th>Processed At</th>
-              <th>Confidence</th>
               <th>Fields</th>
             </tr>
           </thead>
