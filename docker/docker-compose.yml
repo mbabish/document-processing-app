@@ -35,3 +35,24 @@ services:
       - FAST_REFRESH=false
     stdin_open: true
     restart: unless-stopped
+
+  llm:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.llm
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../llm:/app
+      - llm-cache:/root/.cache  # Persistent cache for model downloads
+    environment:
+      - LOG_LEVEL=INFO
+    restart: unless-stopped
+    # If your machine has limited memory, you might want to limit the container
+    deploy:
+      resources:
+        limits:
+          memory: 4G  # Adjust based on your system's available memory
+
+volumes:
+  llm-cache:  # Define a named volume for the model cache

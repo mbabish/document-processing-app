@@ -1,0 +1,25 @@
+FROM python:3.9-slim
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python dependencies
+COPY llm/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Create a directory for the app
+RUN mkdir -p /app
+
+# Copy application code
+COPY llm/ .
+
+# Expose the API port
+EXPOSE 8000
+
+# Start the API server
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
