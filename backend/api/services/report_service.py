@@ -27,7 +27,6 @@ class ReportService:
                 "schema_id": schema["id"],
                 "schema_title": schema["title"],
                 "processed_at": (datetime.datetime.now() - datetime.timedelta(days=random.randint(1, 30))).isoformat(),
-                "confidence": round(random.uniform(0.7, 0.99), 2),
                 "fields_count": random.randint(5, 15)
             })
         

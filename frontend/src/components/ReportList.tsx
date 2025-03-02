@@ -42,12 +42,6 @@ const ReportList = (props: ReportListProps): JSX.Element => {
   if (error) return <div>Error: {error}</div>;
   if (!reportData) return <div>No data available</div>;
 
-  const getConfidenceClass = (confidence: number): string => {
-    if (confidence >= 0.9) return 'tag tag-high';
-    if (confidence >= 0.7) return 'tag tag-medium';
-    return 'tag tag-low';
-  };
-
   // Get schema options for filter - check if schemas_used exists before mapping
   const schemaOptions: SchemaOption[] = 'schemas_used' in reportData 
     ? Object.keys(reportData.schemas_used).map(key => ({
