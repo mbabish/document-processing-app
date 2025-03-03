@@ -8,6 +8,9 @@ uuid==1.30
 
 # File handling and processing
 python-multipart==0.0.6
+requests==2.28.2
+PyPDF2==3.0.1
+jsonschema==4.17.3
 
 # Development and debugging
 werkzeug==2.3.4

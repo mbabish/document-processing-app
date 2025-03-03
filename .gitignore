@@ -73,4 +73,6 @@ yarn-error.log*
 # Backend uploads - ignore uploaded files
 /backend/uploads/
 /backend/uploads/*
-backend/__pycache__/app.cpython-39.pyc
+
+# Backend schemas - ignore schemas
+/backend/schemas/*.json

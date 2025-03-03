@@ -1,35 +1,42 @@
 import os
 import uuid
+from typing import Set
+from werkzeug.datastructures import FileStorage
 
-def allowed_file(filename, allowed_extensions):
+def allowed_file(filename: str, allowed_extensions: Set[str]) -> bool:
     """
-    Check if the filename has an allowed extension.
+    Check if file has an allowed extension
     
-    :param filename: Name of the file to check
-    :param allowed_extensions: Set of allowed file extensions
-    :return: Boolean indicating if file is allowed
+    Args:
+        filename: Name of the file to check
+        allowed_extensions: Set of allowed extensions
+        
+    Returns:
+        True if file has an allowed extension, False otherwise
     """
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in allowed_extensions
 
-def generate_unique_filename(original_filename):
+def save_uploaded_file(file: FileStorage, upload_folder: str) -> str:
     """
-    Generate a unique filename by prepending a UUID.
+    Save an uploaded file with a unique filename
     
-    :param original_filename: Original name of the file
-    :return: Unique filename
+    Args:
+        file: FileStorage object to save
+        upload_folder: Directory to save the file in
+        
+    Returns:
+        Path to the saved file
     """
-    return f"{uuid.uuid4()}_{original_filename}"
-
-def save_uploaded_file(file, upload_folder):
-    """
-    Save an uploaded file to the specified folder.
+    # Ensure upload folder exists
+    os.makedirs(upload_folder, exist_ok=True)
     
-    :param file: File object from the request
-    :param upload_folder: Destination folder for the file
-    :return: Full path to the saved file
-    """
-    unique_filename = generate_unique_filename(file.filename)
+    # Generate a unique filename
+    original_filename = file.filename
+    unique_filename = f"{uuid.uuid4()}_{original_filename}"
     filepath = os.path.join(upload_folder, unique_filename)
+    
+    # Save the file
     file.save(filepath)
+    
     return filepath
