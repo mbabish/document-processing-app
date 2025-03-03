@@ -65,21 +65,23 @@ class ClassificationService:
             
             # Prepare classification prompt
             classification_prompt = f"""
-            Analyze the following document JSON text and determine its type. 
-            Possible document types are: {', '.join(document_types)}.
+Analyze the following document text and determine its type. 
+Possible document types are: {', '.join(document_types)}.
 
-            Provide a JSON response:
-            {{
-                "schema_id": "chosen document type",
-                "reasoning": "explanation"
-            }}
-            
-            Document text:
-            {full_text[:2000]}  # Limit to first 2000 characters
-            
-            
-            Respond ONLY with the valid JSON, no additional text.
-            """
+Provide a JSON response:
+{{
+    "schema_id": "chosen document type",
+    "reasoning": "explanation"
+}}
+
+Respond ONLY with the valid JSON, no additional text.
+
+The document text will start and end with "==========" but could be empty:
+==========
+{full_text[:2000]}
+==========
+# Limit to first 2000 characters
+"""
             
             self.logger.info(f"Classification Prompt: {classification_prompt}")
 

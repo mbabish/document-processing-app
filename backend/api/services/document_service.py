@@ -183,6 +183,10 @@ class DocumentService:
         :param schema_id: Optional schema ID to filter documents
         :return: List of processed documents
         """
+
+        # Always reload from disk to get fresh data
+        self._load_processed_documents()
+
         if schema_id:
             return [
                 doc for doc in self._processed_documents 
