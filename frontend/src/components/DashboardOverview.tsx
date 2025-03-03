@@ -19,7 +19,7 @@ const DashboardOverview = ({ reportData }: DashboardOverviewProps): JSX.Element 
           <p>{reportData.total_documents}</p>
         </div>
         <div className="stat-card">
-          <h3>Schemas Used</h3>
+          <h3>Total Schemas</h3>
           <p>{Object.keys(reportData.schemas_used).length}</p>
         </div>
       </div>

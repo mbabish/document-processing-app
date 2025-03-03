@@ -1,10 +1,17 @@
 from flask import Blueprint, jsonify
 from api.services.document_service import DocumentService
 from api.services.report_service import ReportService
+from api.services.schema_service import SchemaService
 
 # Initialize blueprint and services
 reports_bp = Blueprint('reports', __name__)
-document_service = DocumentService()
+
+
+schema_service = SchemaService()
+document_service = DocumentService(
+    classification_service=None,
+    schema_service=schema_service
+)
 report_service = ReportService(document_service)
 
 @reports_bp.route('/reports', methods=['GET'])

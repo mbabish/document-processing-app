@@ -4,9 +4,10 @@ import uuid
 import PyPDF2
 import os
 import logging
+import json
 
 class DocumentService:
-    def __init__(self, classification_service=None, schema_service=None):
+    def __init__(self, classification_service=None, schema_service=None, storage_path=None):
         # Classification and schema services
         self.classification_service = classification_service
         self.schema_service = schema_service
@@ -14,6 +15,42 @@ class DocumentService:
         # Configure logging
         logging.basicConfig(level=logging.INFO)
         self.logger = logging.getLogger(__name__)
+        
+        # Configure document storage
+        self.storage_path = storage_path or os.path.join(
+            os.path.dirname(__file__), 
+            'processed_documents.json'
+        )
+        
+        # Ensure storage file exists
+        if not os.path.exists(self.storage_path):
+            with open(self.storage_path, 'w') as f:
+                json.dump([], f)
+        
+        # Internal storage of processed documents
+        self._processed_documents = []
+        self._load_processed_documents()
+
+    def _load_processed_documents(self):
+        """
+        Load processed documents from storage file.
+        """
+        try:
+            with open(self.storage_path, 'r') as f:
+                self._processed_documents = json.load(f)
+        except Exception as e:
+            self.logger.error(f"Error loading processed documents: {str(e)}")
+            self._processed_documents = []
+
+    def _save_processed_documents(self):
+        """
+        Save processed documents to storage file.
+        """
+        try:
+            with open(self.storage_path, 'w') as f:
+                json.dump(self._processed_documents, f, indent=2)
+        except Exception as e:
+            self.logger.error(f"Error saving processed documents: {str(e)}")
 
     def parse_pdf_to_json(self, filepath):
         """
@@ -114,43 +151,44 @@ class DocumentService:
             # Fallback to first available schema or generic
             schema = available_schemas[0]
             schema_id = schema['id']
-            schema_title = schema['title']
         else:
             # Find schema details
             schema = next((s for s in available_schemas if s['id'] == schema_id), 
                           available_schemas[0])
-            schema_title = schema['title']
-        
-        # Validate document if schema service is available
-        validation_result = None
-        if self.schema_service and classification and classification.get('extracted_data'):
-            try:
-                is_valid, error_message = self.schema_service.validate_document(
-                    schema_id, 
-                    classification['extracted_data']
-                )
-                validation_result = {
-                    "is_valid": is_valid,
-                    "error_message": error_message
-                }
-            except Exception as e:
-                self.logger.error(f"Schema validation error: {str(e)}")
         
         # Generate document metadata
         document = {
             "classification_id": f"doc-{uuid.uuid4()}",
             "filename": original_filename,
             "schema_id": schema_id,
-            "schema_title": schema_title,
             "processed_at": datetime.datetime.now().isoformat(),
-            "fields_count": len(classification.get('extracted_data', {})) if classification else 0,
             "filepath": filepath,
             "parsed_content": parsed_content,
             "classification": classification,
-            "validation": validation_result
+            "confidence": classification.get('confidence', 0.5) if classification else 0.5
         }
         
+        # Store the document locally
+        self._processed_documents.append(document)
+        
+        # Save to persistent storage
+        self._save_processed_documents()
+        
         return document
+
+    def get_documents(self, schema_id=None):
+        """
+        Retrieve processed documents, optionally filtered by schema.
+        
+        :param schema_id: Optional schema ID to filter documents
+        :return: List of processed documents
+        """
+        if schema_id:
+            return [
+                doc for doc in self._processed_documents 
+                if doc.get('schema_id') == schema_id
+            ]
+        return self._processed_documents
 
     def get_schemas(self):
         """

@@ -6,9 +6,8 @@ export interface ReportDocument {
   classification_id: string;
   filename: string;
   schema_id: string;
-  schema_title?: string;
   processed_at: string;
-  fields_count?: number;
+  confidence: number;
 }
 
 export interface SchemaUsageStats {
@@ -40,7 +39,6 @@ export interface ReportData {
 export interface SchemaReportData {
   generated_at: string;
   schema_id: string;
-  schema_title: string;
   total_documents: number;
   field_coverage: Record<string, SchemaFieldCoverage>;
   document_list: Array<ReportDocument>;

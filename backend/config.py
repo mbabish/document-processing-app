@@ -3,12 +3,10 @@ import os
 class Config:
     # Upload configuration
     UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), 'uploads')
-    SCHEMAS_FOLDER = os.path.join(os.path.dirname(__file__), 'schemas')
     ALLOWED_EXTENSIONS = {'pdf'}
 
     # Ensure required folders exist
     os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-    os.makedirs(SCHEMAS_FOLDER, exist_ok=True)
 
     # Configure maximum file upload size (16MB)
     MAX_CONTENT_LENGTH = 16 * 1024 * 1024

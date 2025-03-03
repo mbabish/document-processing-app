@@ -1,5 +1,6 @@
 FROM python:3.9-slim
 
+# Set working directory
 WORKDIR /app
 
 # Install system dependencies
@@ -12,14 +13,18 @@ RUN apt-get update && apt-get install -y \
 COPY llm/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Create a directory for the app
-RUN mkdir -p /app
-
-# Copy application code
+# Copy the application code
 COPY llm/ .
 
-# Expose the API port
+# Create a startup script with error handling
+RUN echo '#!/bin/bash\n\
+set -e\n\
+echo "Starting LLM service..."\n\
+uvicorn main:app --host 0.0.0.0 --port 8000 --log-level debug\n\
+' > /start.sh && chmod +x /start.sh
+
+# Expose the port the app runs on
 EXPOSE 8000
 
-# Start the API server
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Use the startup script
+CMD ["/start.sh"]

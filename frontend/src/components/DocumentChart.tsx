@@ -27,13 +27,13 @@ interface DocumentChartProps {
   reportData: ReportData;
 }
 
-const DocumentChart = ({ reportData }: DocumentChartProps): JSX.Element => {
+const DocumentChart = (props: DocumentChartProps): JSX.Element => {
   // Prepare data for schema usage chart
-  const schemaLabels: string[] = Object.keys(reportData.schemas_used).map(
-    key => reportData.schemas_used[key].title
+  const schemaLabels: string[] = Object.keys(props.reportData.schemas_used).map(
+    key => props.reportData.schemas_used[key].title
   );
-  const schemaData: number[] = Object.keys(reportData.schemas_used).map(
-    key => reportData.schemas_used[key].count
+  const schemaData: number[] = Object.keys(props.reportData.schemas_used).map(
+    key => props.reportData.schemas_used[key].count
   );
 
   const schemaChartData: ChartData<'bar'> = {

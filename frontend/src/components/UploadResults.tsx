@@ -23,15 +23,11 @@ const UploadResults = ({ document, onReturnToUpload }: UploadResultsProps): JSX.
         </div>
         <div style={{ display: 'flex', marginBottom: '10px' }}>
           <div style={{ width: '150px', fontWeight: 'bold' }}>Document Type:</div>
-          <div>{document.schema_title}</div>
+          <div>{document.schema_id}</div>
         </div>
         <div style={{ display: 'flex', marginBottom: '10px' }}>
           <div style={{ width: '150px', fontWeight: 'bold' }}>Processed At:</div>
           <div>{new Date(document.processed_at).toLocaleString()}</div>
-        </div>
-        <div style={{ display: 'flex', marginBottom: '10px' }}>
-          <div style={{ width: '150px', fontWeight: 'bold' }}>Fields Extracted:</div>
-          <div>{document.fields_count || 'N/A'}</div>
         </div>
       </div>
       

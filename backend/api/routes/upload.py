@@ -1,11 +1,23 @@
 from flask import Blueprint, jsonify, request
 from api.utils.file_utils import allowed_file, save_uploaded_file
+from api.services.classification_service import ClassificationService
 from api.services.document_service import DocumentService
+from api.services.schema_service import SchemaService
+
 from config import Config
 
 # Initialize blueprint and services
 upload_bp = Blueprint('upload', __name__)
-document_service = DocumentService()
+
+# Create services
+schema_service = SchemaService()
+classification_service = ClassificationService(
+    schema_service=schema_service
+)
+document_service = DocumentService(
+    classification_service=classification_service,
+    schema_service=schema_service
+)
 
 @upload_bp.route('/upload', methods=['POST'])
 def upload_file():
@@ -35,7 +47,7 @@ def upload_file():
             
             return jsonify({
                 'success': True,
-                'message': f'File uploaded and processed as {document["schema_title"]}',
+                'message': f'File uploaded and processed as {document["schema_id"]}',
                 'document': document
             }), 201
         

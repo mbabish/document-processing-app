@@ -74,5 +74,4 @@ yarn-error.log*
 /backend/uploads/
 /backend/uploads/*
 
-# Backend schemas - ignore schemas
-/backend/schemas/*.json
+/backend/api/services/processed_documents.json

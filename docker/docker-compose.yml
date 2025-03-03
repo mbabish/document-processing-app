@@ -1,6 +1,30 @@
 version: '3.8'
 
 services:
+  llm:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.llm
+    # Don't expose ports directly to host - only through frontend proxy
+    expose:
+      - "8000"
+    volumes:
+      - ../llm:/app
+      - llm-cache:/root/.cache  # Persistent cache for model downloads
+    environment:
+      - LOG_LEVEL=INFO
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+    # If your machine has limited memory, you might want to limit the container
+    deploy:
+      resources:
+        limits:
+          memory: 8G  # Adjust based on your system's available memory
+
   backend:
     build:
       context: ..
@@ -31,7 +55,6 @@ services:
       - /app/node_modules
     depends_on:
       - backend
-      - llm
     environment:
       - CHOKIDAR_USEPOLLING=true
       - WATCHPACK_POLLING=true
@@ -40,25 +63,6 @@ services:
     stdin_open: true
     restart: unless-stopped
 
-  llm:
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile.llm
-    # Don't expose ports directly to host - only through frontend proxy
-    expose:
-      - "8000"
-    volumes:
-      - ../llm:/app
-      - llm-cache:/root/.cache  # Persistent cache for model downloads
-    environment:
-      - LOG_LEVEL=INFO
-
-    restart: unless-stopped
-    # If your machine has limited memory, you might want to limit the container
-    deploy:
-      resources:
-        limits:
-          memory: 4G  # Adjust based on your system's available memory
 
 volumes:
   llm-cache:  # Define a named volume for the model cache

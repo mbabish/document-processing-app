@@ -8,7 +8,7 @@ class ClassificationService:
     """
     Service responsible for classifying documents using an LLM API
     """
-    def __init__(self, llm_api_url=None, schema_service=None):
+    def __init__(self, schema_service=None):
         """
         Initialize the classification service
         
@@ -16,9 +16,9 @@ class ClassificationService:
         :param schema_service: Service to provide document schemas
         """
         # LLM API URL for text generation
-        self.llm_api_url = llm_api_url or os.environ.get(
+        self.llm_api_url = os.environ.get(
             'LLM_API_URL', 
-            'http://localhost:8000'
+            'http://llm:8000'
         )
         
         # Schema service
@@ -34,60 +34,20 @@ class ClassificationService:
         
         :return: List of document types
         """
-        # If SchemaService is available, use its schemas
         if self.schema_service:
             try:
                 schemas = self.schema_service.get_schemas()
                 
-                # Extract schema IDs if schemas exist
+                # Extract schema titles if schemas exist
                 if schemas:
-                    return [schema['id'] for schema in schemas]
+                    return [schema['title'] for schema in schemas]
                 
                 # Log warning if no schemas found
                 self.logger.warning("No schemas found in SchemaService")
             except Exception as e:
                 self.logger.error(f"Error retrieving schemas: {str(e)}")
         
-        # Fallback to a generic document type
-        return ['generic']
-
-    def _prepare_classification_prompt(self, text: str, document_types: list) -> str:
-        """
-        Prepare a prompt for document classification
-        
-        :param text: Text content to classify
-        :param document_types: List of possible document types
-        :return: Formatted classification prompt
-        """
-        # Truncate text to first 2000 characters
-        text_to_classify = text[:2000]
-        
-        # Format document types for the prompt
-        types_str = ', '.join(document_types)
-        
-        return f"""
-        Analyze the following document text and determine its type. 
-        Possible document types are: {types_str}.
-        
-        If you cannot confidently match the document to any of these types, 
-        return 'generic' as the schema_id.
-        
-        Document text:
-        {text_to_classify}
-        
-        Provide a JSON response with the following:
-        {{
-            "schema_id": "{types_str}/generic",
-            "confidence": 0.0-1.0,
-            "reasoning": "explanation",
-            "extracted_data": {{
-                "key1": "value1",
-                "key2": "value2"
-            }}
-        }}
-        
-        Respond ONLY with the valid JSON, no additional text.
-        """
+        return []
 
     def classify_document(self, parsed_content: dict) -> dict:
         """
@@ -104,8 +64,26 @@ class ClassificationService:
             full_text = " ".join([page['text'] for page in parsed_content.get('content', [])])
             
             # Prepare classification prompt
-            classification_prompt = self._prepare_classification_prompt(full_text, document_types)
+            classification_prompt = f"""
+            Analyze the following document JSON text and determine its type. 
+            Possible document types are: {', '.join(document_types)}.
+
+            Provide a JSON response:
+            {{
+                "schema_id": "chosen document type",
+                "reasoning": "explanation"
+            }}
             
+            Document text:
+            {full_text[:2000]}  # Limit to first 2000 characters
+            
+            
+            Respond ONLY with the valid JSON, no additional text.
+            """
+            
+            self.logger.info(f"Classification Prompt: {classification_prompt}")
+
+
             # Call LLM text generation endpoint
             response = requests.post(
                 f"{self.llm_api_url}/api/generate", 
@@ -116,9 +94,12 @@ class ClassificationService:
                 },
                 timeout=30  # Add a timeout to prevent hanging
             )
-            
+
+            self.logger.info(f"Response Text: {response.text}")
+
             # Check if request was successful
             if response.status_code == 200:
+
                 # Extract the generated text
                 generated_text = response.json().get('text', '')
                 
@@ -129,10 +110,18 @@ class ClassificationService:
                     if json_match:
                         classification = json.loads(json_match.group(0))
                         
-                        # Validate schema_id
-                        if classification.get('schema_id') in document_types:
-                            self.logger.info(f"Document classification: {classification}")
-                            return classification
+                        # Validate and fallback if needed
+                        schema_id = classification.get('schema_id', '')
+                        if schema_id not in document_types:
+                            schema_id = 'Generic Document'
+                        
+                        # Ensure confidence is within 0-1 range
+                        confidence = max(0, min(1, classification.get('confidence', 0.5)))
+                        
+                        return {
+                            "schema_id": schema_id,
+                            "reasoning": classification.get('reasoning', 'Classification based on document content')
+                        }
                     
                     # Fallback if JSON parsing fails
                     self.logger.warning(f"Failed to parse classification JSON: {generated_text}")
@@ -141,20 +130,17 @@ class ClassificationService:
             
             # Fallback to generic classification
             return {
-                "schema_id": "generic",
-                "confidence": 0.0,
-                "reasoning": "Classification failed",
-                "extracted_data": None
+                "schema_id": "Generic Document",
+                "confidence": 0.5,
+                "reasoning": "Unable to classify document"
             }
         
         except requests.RequestException as e:
             # Handle network or request errors
             self.logger.error(f"Classification request error: {str(e)}")
             return {
-                "schema_id": "generic",
-                "confidence": 0.0,
-                "reasoning": f"Classification request error: {str(e)}",
-                "extracted_data": None
+                "schema_id": "Generic Document",
+                "reasoning": f"Classification request error: {str(e)}"
             }
 
     def get_supported_document_types(self) -> list:
