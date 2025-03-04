@@ -71,7 +71,8 @@ yarn-error.log*
 *.tsbuildinfo
 
 # Backend uploads - ignore uploaded files
-/backend/uploads/
-/backend/uploads/*
+/backend/_uploads/
+/backend/_uploads/*
 
-/backend/api/services/processed_documents.json
+/backend/_documents/
+/backend/_documents/*

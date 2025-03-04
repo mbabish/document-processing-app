@@ -1,29 +1,31 @@
 version: '3.8'
 
 services:
+
+  ollama:
+    build:
+      context: .
+      dockerfile: Dockerfile.ollama
+    environment:
+        - OLLAMA_MODEL=mistral:latest
+    volumes:
+      - ollama_data:/root/.ollama
+    expose:
+      - "11434:11434"
+    restart: unless-stopped
+
   llm:
     build:
       context: ..
       dockerfile: docker/Dockerfile.llm
-    # Don't expose ports directly to host - only through frontend proxy
     expose:
-      - "8000"
-    volumes:
-      - ../llm:/app
-      - llm-cache:/root/.cache  # Persistent cache for model downloads
+      - "8000:8000"
     environment:
-      - LOG_LEVEL=INFO
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 120s
-    # If your machine has limited memory, you might want to limit the container
-    deploy:
-      resources:
-        limits:
-          memory: 8G  # Adjust based on your system's available memory
+      - OLLAMA_API_BASE=http://ollama:11434/api
+      - OLLAMA_MODEL=mistral:latest
+    depends_on:
+      - ollama
+    restart: unless-stopped
 
   backend:
     build:
@@ -65,4 +67,4 @@ services:
 
 
 volumes:
-  llm-cache:  # Define a named volume for the model cache
+  ollama_data:

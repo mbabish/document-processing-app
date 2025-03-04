@@ -32,20 +32,34 @@ const DocumentChart = (props: DocumentChartProps): JSX.Element => {
   const schemaLabels: string[] = Object.keys(props.reportData.schemas_used).map(
     key => props.reportData.schemas_used[key].title
   );
-  const schemaData: number[] = Object.keys(props.reportData.schemas_used).map(
+  
+  // Add "Uncategorized" to schema labels
+  const allLabels = [...schemaLabels, "Uncategorized"];
+
+  // Get categorized document counts
+  const categorizedCounts: number[] = Object.keys(props.reportData.schemas_used).map(
     key => props.reportData.schemas_used[key].count
   );
+  
+  // Calculate uncategorized count (assuming total_documents includes all documents)
+  const totalDocuments = props.reportData.total_documents || 0;
+  const categorizedTotal = categorizedCounts.reduce((sum, count) => sum + count, 0);
+  const uncategorizedCount = Math.max(0, totalDocuments - categorizedTotal);
+  
+  // Combine categorized and uncategorized counts
+  const allData = [...categorizedCounts, uncategorizedCount];
 
   const schemaChartData: ChartData<'bar'> = {
-    labels: schemaLabels,
+    labels: allLabels,
     datasets: [
       {
         label: 'Documents by Schema',
-        data: schemaData,
+        data: allData,
         backgroundColor: [
           'rgba(75, 192, 192, 0.6)',
           'rgba(54, 162, 235, 0.6)',
           'rgba(255, 206, 86, 0.6)',
+          'rgba(153, 102, 255, 0.6)', // Color for uncategorized
         ],
       },
     ],
@@ -75,6 +89,11 @@ const DocumentChart = (props: DocumentChartProps): JSX.Element => {
           options={chartOptions}
         />
       </div>
+      {uncategorizedCount > 0 && (
+        <div className="card-footer text-muted">
+          <small>{uncategorizedCount} documents are uncategorized ({Math.round((uncategorizedCount / totalDocuments) * 100)}% of total)</small>
+        </div>
+      )}
     </div>
   );
 };

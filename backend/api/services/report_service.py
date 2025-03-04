@@ -82,7 +82,7 @@ class ReportService:
         schemas_used = {}
         
         for schema in available_schemas:
-            schema_id = schema['id']
+            schema_id = schema['title']
             
             # Get count for this schema, default to 0 if no documents
             schema_info = schema_counts.get(schema_id, {"count": 0})

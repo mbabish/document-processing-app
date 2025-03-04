@@ -19,7 +19,7 @@ class DocumentService:
         # Configure document storage
         self.storage_path = storage_path or os.path.join(
             os.path.dirname(__file__), 
-            'processed_documents.json'
+            '../../_documents/processed_documents.json'
         )
         
         # Ensure storage file exists

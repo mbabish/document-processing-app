@@ -68,19 +68,16 @@ class ClassificationService:
 Analyze the following document text and determine its type. 
 Possible document types are: {', '.join(document_types)}.
 
-Provide a JSON response:
+Provide a JSON response in the following format with no additional text:
 {{
     "schema_id": "chosen document type",
     "reasoning": "explanation"
 }}
 
-Respond ONLY with the valid JSON, no additional text.
-
 The document text will start and end with "==========" but could be empty:
 ==========
 {full_text[:2000]}
 ==========
-# Limit to first 2000 characters
 """
             
             self.logger.info(f"Classification Prompt: {classification_prompt}")
@@ -94,7 +91,7 @@ The document text will start and end with "==========" but could be empty:
                     "max_new_tokens": 500,
                     "temperature": 0.7
                 },
-                timeout=30  # Add a timeout to prevent hanging
+                timeout=120  # Add a timeout to prevent hanging
             )
 
             self.logger.info(f"Response Text: {response.text}")

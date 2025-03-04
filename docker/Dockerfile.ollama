@@ -1,0 +1,32 @@
+FROM ollama/ollama:latest
+
+# Create startup script
+WORKDIR /app
+RUN echo '#!/bin/sh\n\
+# Start Ollama server\n\
+ollama serve &\n\
+\n\
+# Give the server time to start\n\
+echo "Starting Ollama server..."\n\
+sleep 5\n\
+\n\
+# Check if model already exists (for container restarts)\n\
+if ! ollama list | grep -q "${OLLAMA_MODEL}"; then\n\
+  echo "Model ${OLLAMA_MODEL} not found. Pulling now..."\n\
+  ollama pull ${OLLAMA_MODEL}\n\
+else\n\
+  echo "Model ${OLLAMA_MODEL} already exists."\n\
+fi\n\
+\n\
+# Keep the server running\n\
+wait\n\
+' > /app/startup.sh
+
+# Make the script executable
+RUN chmod +x /app/startup.sh
+
+# Expose Ollama API port
+EXPOSE 11434
+
+# Run the startup script when the container starts
+ENTRYPOINT ["/app/startup.sh"]

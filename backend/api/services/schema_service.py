@@ -14,7 +14,7 @@ class SchemaService:
         # Predefined document types
         self._predefined_types = [
             "Compliance Report",
-            "Delivery Ticket",
+            "Delivery Receipt",
             "Order",
             "Physician Notes", 
             "Prescription",

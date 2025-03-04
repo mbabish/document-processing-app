@@ -1,21 +1,4 @@
-# Core Python libraries
-fastapi==0.109.0
-uvicorn==0.24.0
-requests==2.31.0
-pydantic==2.6.1
-
-# Machine Learning and NLP
-torch==2.1.2
-transformers==4.37.2
-accelerate==0.26.1
-bitsandbytes==0.41.1
-
-# Data processing
-numpy==1.24.3
-scipy==1.10.1
-
-# Logging and debugging
-python-multipart==0.0.9
-
-# Optional: for better error handling
-httpx==0.26.0
+fastapi==0.104.1
+uvicorn==0.23.2
+httpx==0.25.1
+pydantic==2.4.2

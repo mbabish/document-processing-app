@@ -1,167 +1,253 @@
-from fastapi import FastAPI, BackgroundTasks
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from typing import Optional, List, Dict, Any
-import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer
 import logging
-import sys
+import httpx
+import asyncio
+import json
 import os
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+from typing import Optional, List, Dict, Any, Union
 
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(sys.stdout),
-        logging.FileHandler('/app/llm_service.log')
-    ]
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("main")
 
-# Ensure the parent logger captures all logs
-logging.getLogger().setLevel(logging.INFO)
+# Initialize FastAPI app
+app = FastAPI()
 
-# Critical startup logging
-logger.info("Starting LLM Service Initialization")
-logger.info(f"Python Version: {sys.version}")
-logger.info(f"PyTorch Version: {torch.__version__}")
+# Ollama API configuration
+OLLAMA_API_BASE = os.environ.get("OLLAMA_API_BASE", "http://ollama:11434/api")
+# Get default model from environment variable or use tinyllama as fallback
+OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "tinyllama")
 
-# Critical environment checks
-logger.info("Checking environment variables and system configuration")
-logger.info(f"CUDA Available: {torch.cuda.is_available()}")
-logger.info(f"CUDA Device Count: {torch.cuda.device_count()}")
-if torch.cuda.is_available():
-    logger.info(f"Current CUDA Device: {torch.cuda.current_device()}")
-    logger.info(f"CUDA Device Name: {torch.cuda.get_device_name(0)}")
+# Check if Ollama server is ready
+is_ollama_ready = False
 
-app = FastAPI(title="LLM Service")
-
-# Add CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Define model parameters
-MODEL_ID = "deepseek-ai/deepseek-coder-1.3b-base"
-DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-LOAD_8BIT = DEVICE == "cuda"
-
-# Global model and tokenizer objects
-model = None
-tokenizer = None
-
-# Model loading status
-is_model_loaded = False
-
-def load_model_in_background():
-    global model, tokenizer, is_model_loaded
-    
-    try:
-        logger.info(f"Attempting to load model {MODEL_ID} on {DEVICE}")
-        
-        # Load tokenizer
-        tokenizer = AutoTokenizer.from_pretrained(MODEL_ID)
-        logger.info("Tokenizer loaded successfully")
-        
-        # Load model with quantization if on CUDA
-        if LOAD_8BIT:
-            logger.info("Loading model in 8-bit quantization")
-            model = AutoModelForCausalLM.from_pretrained(
-                MODEL_ID,
-                device_map="auto",
-                load_in_8bit=True,
-                torch_dtype=torch.float16
-            )
-        else:
-            logger.info("Loading model in full precision")
-            model = AutoModelForCausalLM.from_pretrained(MODEL_ID)
-            model.to(DEVICE)
-        
-        is_model_loaded = True
-        logger.info("Model loaded successfully")
-    
-    except Exception as e:
-        logger.error(f"Critical error loading model: {str(e)}")
-        logger.error(f"Full error traceback:", exc_info=True)
-        is_model_loaded = False
-
-@app.on_event("startup")
-async def startup_event():
-    logger.info("FastAPI application startup")
-    # Start loading the model in the background
-    background_tasks = BackgroundTasks()
-    background_tasks.add_task(load_model_in_background)
-    await background_tasks()
-
-@app.get("/")
-async def root():
-    logger.info("Health check endpoint accessed")
-    return {
-        "status": "ok",
-        "message": "LLM Service is running",
-        "model_loaded": is_model_loaded,
-        "model_id": MODEL_ID,
-        "device": DEVICE
-    }
-
+# Request model
 class TextRequest(BaseModel):
     prompt: str
-    max_new_tokens: int = 512
+    max_new_tokens: int = 256  # Will be converted to max_tokens for Ollama
     temperature: float = 0.7
     stop_sequences: Optional[List[str]] = None
+    model: str = OLLAMA_MODEL  # Allow overriding the default model
 
+# Text generation endpoint using Ollama API
 @app.post("/api/generate")
 async def generate_text(request: TextRequest):
-    if not is_model_loaded:
-        return {"error": "Model is still loading, please try again in a moment"}
+    if not is_ollama_ready:
+        # Try to check status one more time
+        ready = await check_ollama_status()
+        if not ready:
+            return {"error": "Ollama server is not available, please check if it's running"}
+
+    # Log all available models for debugging
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            models_response = await client.get(f"{OLLAMA_API_BASE}/tags")
+            if models_response.status_code == 200:
+                available_models = models_response.json().get("models", [])
+                model_names = [model.get("name") for model in available_models]
+                logger.info(f"Available models: {model_names}")
+            else:
+                logger.error(f"Failed to get model list: {models_response.status_code}")
+    except Exception as e:
+        logger.error(f"Error checking available models: {str(e)}")
+    
+    logger.info(f"Received generation request for model: {request.model}")
+    logger.info(f"Prompt preview: {request.prompt[:50]}...")
+    
+    # Check if the requested model exists, try to pull it if not
+    model_exists = await ensure_model_exists(request.model)
+    if not model_exists:
+        return {
+            "error": f"Model '{request.model}' not found and could not be pulled automatically. Please pull it manually with 'docker exec -it ollama ollama pull {request.model}'"
+        }
     
     try:
-        # Generate text based on the prompt
-        inputs = tokenizer(request.prompt, return_tensors="pt").to(DEVICE)
-        
-        # Generate with specified parameters
-        generation_config = {
-            "max_new_tokens": request.max_new_tokens,
-            "temperature": request.temperature,
-            "do_sample": request.temperature > 0,
+        # Prepare the Ollama API request
+        ollama_request = {
+            "model": request.model,
+            "prompt": request.prompt,
+            "options": {
+                "temperature": request.temperature,
+                "num_predict": request.max_new_tokens,  # Convert to Ollama's param
+            },
+            "stream": False  # Important: disable streaming to get a complete response
         }
         
-        with torch.no_grad():
-            outputs = model.generate(**inputs, **generation_config)
-        
-        # Decode the generated text
-        generated_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
-        
-        # Handle stop sequences if provided
+        # Add stop sequences if provided
         if request.stop_sequences:
-            for stop_seq in request.stop_sequences:
-                if stop_seq in generated_text:
-                    generated_text = generated_text.split(stop_seq)[0]
+            ollama_request["options"]["stop"] = request.stop_sequences
         
-        # For cleaner output, remove the prompt from the generated text if it appears at the beginning
-        if generated_text.startswith(request.prompt):
-            generated_text = generated_text[len(request.prompt):].lstrip()
+        logger.info(f"Sending request to Ollama API with options: {ollama_request['options']}")
         
-        return {
-            "text": generated_text,
-            "model": MODEL_ID,
-            "usage": {
-                "prompt_tokens": len(inputs.input_ids[0]),
-                "completion_tokens": len(outputs[0]) - len(inputs.input_ids[0]),
-                "total_tokens": len(outputs[0])
-            }
-        }
-    
+        # Send request to Ollama API
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            try:
+                response = await client.post(
+                    f"{OLLAMA_API_BASE}/generate",
+                    json=ollama_request
+                )
+                
+                # Check if request was successful
+                if response.status_code != 200:
+                    error_msg = f"Ollama API returned status code: {response.status_code}"
+                    logger.error(error_msg)
+                    
+                    # Try to extract error message from response
+                    try:
+                        error_details = response.json()
+                        if "error" in error_details:
+                            error_msg += f" - {error_details['error']}"
+                    except:
+                        pass
+                        
+                    return {"error": error_msg}
+                
+                # Handle both streaming and non-streaming responses
+                if 'application/x-ndjson' in response.headers.get('content-type', ''):
+                    # Process streaming response (even though we requested non-streaming)
+                    logger.info("Received streaming response despite requesting non-streaming")
+                    full_text = await process_streaming_response(response.text)
+                    logger.info(f"Processed streaming response, length: {len(full_text)}")
+                else:
+                    # Process normal JSON response
+                    response_data = response.json()
+                    full_text = response_data.get("response", "")
+                
+                # Calculate approximate token counts
+                # This is an estimate since we don't have exact token counts
+                prompt_tokens = len(request.prompt.split()) // 3 * 4  # Rough estimate
+                completion_tokens = len(full_text.split()) // 3 * 4   # Rough estimate
+                total_tokens = prompt_tokens + completion_tokens
+                
+                logger.info(f"Successfully generated text: {len(full_text)} characters")
+                
+                return {
+                    "text": full_text,
+                    "model": request.model,
+                    "usage": {
+                        "prompt_tokens": prompt_tokens,
+                        "completion_tokens": completion_tokens,
+                        "total_tokens": total_tokens
+                    }
+                }
+                
+            except httpx.TimeoutException:
+                logger.error("Request to Ollama API timed out")
+                return {"error": "Generation timed out. Try using a smaller max_new_tokens value or a lighter model."}
+                
     except Exception as e:
-        logger.error(f"Error generating text: {str(e)}")
+        import traceback
+        error_trace = traceback.format_exc()
+        logger.error(f"Unexpected error: {str(e)}")
+        logger.error(error_trace)
         return {"error": str(e)}
 
-if __name__ == "__main__":
-    import uvicorn
-    logger.info("Starting LLM service directly")
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True, log_level="debug")
+# Function to process streaming responses
+async def process_streaming_response(text_stream):
+    """Process Ollama streaming response format and extract the generated text."""
+    full_text = ""
+    
+    # Process each line of the stream
+    for line in text_stream.strip().split('\n'):
+        if not line:
+            continue
+            
+        try:
+            # Parse the JSON line
+            data = json.loads(line)
+            
+            # Extract the response fragment
+            if "response" in data:
+                full_text += data["response"]
+                
+            # Check if this is the last message
+            if data.get("done", False):
+                break
+                
+        except json.JSONDecodeError:
+            logger.warning(f"Failed to decode JSON line: {line}")
+            
+    return full_text
+
+# Function to check if Ollama is running and check available models
+async def check_ollama_status():
+    global is_ollama_ready
+    
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            response = await client.get(f"{OLLAMA_API_BASE}/tags")
+            if response.status_code == 200:
+                is_ollama_ready = True
+                logger.info("Ollama server is ready")
+                
+                # Log available models
+                models = response.json().get("models", [])
+                model_names = [model.get("name") for model in models]
+                logger.info(f"Available Ollama models: {model_names}")
+                return True
+            else:
+                logger.error(f"Ollama server returned status code: {response.status_code}")
+                return False
+    except Exception as e:
+        logger.error(f"Error connecting to Ollama: {str(e)}")
+        return False
+
+# Function to check if a model exists and pull it if it doesn't
+async def ensure_model_exists(model_name: str):
+    logger.info(f"Checking if model '{model_name}' exists")
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            # Check available models
+            response = await client.get(f"{OLLAMA_API_BASE}/tags")
+            if response.status_code != 200:
+                logger.error(f"Failed to get model list: {response.status_code}")
+                return False
+            
+            models = response.json().get("models", [])
+            model_names = [model.get("name") for model in models]
+            
+            # If model doesn't exist, pull it
+            if model_name not in model_names:
+                logger.info(f"Model '{model_name}' not found, pulling it now...")
+                
+                # Start the pull operation
+                pull_response = await client.post(
+                    f"{OLLAMA_API_BASE}/pull",
+                    json={"name": model_name}
+                )
+                
+                if pull_response.status_code != 200:
+                    logger.error(f"Failed to start model pull: {pull_response.status_code}")
+                    return False
+                
+                logger.info(f"Started pulling model '{model_name}'")
+                return True
+            else:
+                logger.info(f"Model '{model_name}' already exists")
+                return True
+    except Exception as e:
+        logger.error(f"Error ensuring model exists: {str(e)}")
+        return False
+
+# Startup event to check if Ollama is ready
+@app.on_event("startup")
+async def startup_event():
+    logger.info("Starting Ollama API connector")
+    status = await check_ollama_status()
+    
+    # Pull the default model if Ollama is ready
+    if status and is_ollama_ready:
+        await ensure_model_exists(OLLAMA_MODEL)
+    
+    # Periodically check Ollama status
+    asyncio.create_task(periodic_status_check())
+
+async def periodic_status_check():
+    while True:
+        if not is_ollama_ready:
+            await check_ollama_status()
+        await asyncio.sleep(30)  # Check every 30 seconds if not ready
